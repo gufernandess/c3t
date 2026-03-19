@@ -81,6 +81,58 @@ curl "http://localhost:3000/quotes?currency=dolar-turismo&city=sao-paulo&operati
 }
 ```
 
+#### Respostas de erro
+
+`400 VALIDATION_ERROR` - parâmetros inválidos
+```json
+{
+  "statusCode": 400,
+  "code": "VALIDATION_ERROR",
+  "error": "Request Error",
+  "message": "Parâmetros inválidos. Revise os dados enviados e tente novamente."
+}
+```
+
+`502 UPSTREAM_LAYOUT_CHANGED` - estrutura do site fonte mudou
+```json
+{
+  "statusCode": 502,
+  "code": "UPSTREAM_LAYOUT_CHANGED",
+  "error": "Request Error",
+  "message": "Não foi possível processar os dados da fonte externa neste momento. Tente novamente em alguns minutos."
+}
+```
+
+`502 UPSTREAM_REQUEST_FAILED` - falha genérica na consulta externa
+```json
+{
+  "statusCode": 502,
+  "code": "UPSTREAM_REQUEST_FAILED",
+  "error": "Request Error",
+  "message": "Não foi possível obter as cotações no momento. Tente novamente mais tarde."
+}
+```
+
+`503 UPSTREAM_TIMEOUT` - timeout na consulta externa
+```json
+{
+  "statusCode": 503,
+  "code": "UPSTREAM_TIMEOUT",
+  "error": "Request Error",
+  "message": "A consulta ao provedor externo excedeu o tempo limite. Tente novamente em alguns instantes."
+}
+```
+
+`500 INTERNAL_SERVER_ERROR` - erro interno inesperado
+```json
+{
+  "statusCode": 500,
+  "code": "INTERNAL_SERVER_ERROR",
+  "error": "Internal Server Error",
+  "message": "Ocorreu um erro interno ao processar a requisição."
+}
+```
+
 ## Atualizacao automatica
 - O worker executa a cada 30 minutos (configurado por `QUOTE_REFRESH_CRON`).
 - O worker atualiza no Redis as consultas ja registradas no historico de uso.

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { AppError } from '../errors/app-error.js';
 import { normalizeProductType, QuotesProvider } from '../services/quotes-provider.js';
 import { normalizeLimit, normalizePage, normalizeSortBy, normalizeSortOrder, paginateQuotes, sortQuotes } from '../utils/quotes-query.js';
 
@@ -136,6 +137,46 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
               },
             },
           },
+          400: {
+            description: 'Erro de validação dos parâmetros enviados.',
+            type: 'object',
+            properties: {
+              statusCode: { type: 'integer' },
+              code: { type: 'string' },
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+          502: {
+            description: 'Falha ao consultar ou processar dados da fonte externa.',
+            type: 'object',
+            properties: {
+              statusCode: { type: 'integer' },
+              code: { type: 'string' },
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+          503: {
+            description: 'Tempo limite excedido na consulta da fonte externa.',
+            type: 'object',
+            properties: {
+              statusCode: { type: 'integer' },
+              code: { type: 'string' },
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
+          500: {
+            description: 'Erro interno inesperado no servidor.',
+            type: 'object',
+            properties: {
+              statusCode: { type: 'integer' },
+              code: { type: 'string' },
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
         },
       },
     },
@@ -157,12 +198,40 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       const sortBy = normalizeSortBy(query.sortBy);
       const sortOrder = normalizeSortOrder(query.sortOrder);
 
-      const result = await quotesProvider.getQuotes({
-        currency: query.currency,
-        city: query.city,
-        operation: query.operation,
-        productType,
-      });
+      let result: Awaited<ReturnType<typeof quotesProvider.getQuotes>>;
+
+      try {
+        result = await quotesProvider.getQuotes({
+          currency: query.currency,
+          city: query.city,
+          operation: query.operation,
+          productType,
+        });
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message.includes('Nao foi possivel extrair moeda/cidade/campo de operacao')) {
+            throw new AppError(
+              502,
+              'UPSTREAM_LAYOUT_CHANGED',
+              'Não foi possível processar os dados da fonte externa neste momento. Tente novamente em alguns minutos.',
+            );
+          }
+
+          if (error.message.toLowerCase().includes('timeout')) {
+            throw new AppError(
+              503,
+              'UPSTREAM_TIMEOUT',
+              'A consulta ao provedor externo excedeu o tempo limite. Tente novamente em alguns instantes.',
+            );
+          }
+        }
+
+        throw new AppError(
+          502,
+          'UPSTREAM_REQUEST_FAILED',
+          'Não foi possível obter as cotações no momento. Tente novamente mais tarde.',
+        );
+      }
 
       const sortedQuotes = sortQuotes(result.data.quotes, sortBy, sortOrder);
       const paginated = paginateQuotes(sortedQuotes, page, limit);

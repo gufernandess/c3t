@@ -3,6 +3,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { env } from './config/env.js';
 import { registerRoutes } from './api/routes.js';
+import { registerGlobalErrorHandler } from './errors/error-handler.js';
 import { closeRedisClient } from './services/redis.js';
 import { startQuotesRefreshWorker } from './worker/quotes-refresh.js';
 
@@ -23,6 +24,7 @@ await fastify.register(swaggerUi, {
   routePrefix: '/docs',
 });
 
+registerGlobalErrorHandler(fastify);
 await registerRoutes(fastify);
 startQuotesRefreshWorker();
 
