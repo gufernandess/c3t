@@ -1,6 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { AppError } from '../errors/app-error.js';
-import { normalizeProductType, QuotesProvider } from '../services/quotes-provider.js';
+import { mapQuotesProviderError, normalizeProductType, QuotesProvider } from '../services/quotes-provider.js';
 import { normalizeLimit, normalizePage, normalizeSortBy, normalizeSortOrder, paginateQuotes, sortQuotes } from '../utils/quotes-query.js';
 
 interface RegisterRoutesDeps {
@@ -139,6 +138,16 @@ export async function registerRoutes(app: FastifyInstance, deps?: RegisterRoutes
                   hasPreviousPage: { type: 'boolean' },
                 },
               },
+              warnings: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    code: { type: 'string' },
+                    message: { type: 'string' },
+                  },
+                },
+              },
             },
           },
           400: {
@@ -212,29 +221,7 @@ export async function registerRoutes(app: FastifyInstance, deps?: RegisterRoutes
           productType,
         });
       } catch (error) {
-        if (error instanceof Error) {
-          if (error.message.includes('Nao foi possivel extrair moeda/cidade/campo de operacao')) {
-            throw new AppError(
-              502,
-              'UPSTREAM_LAYOUT_CHANGED',
-              'Não foi possível processar os dados da fonte externa neste momento. Tente novamente em alguns minutos.',
-            );
-          }
-
-          if (error.message.toLowerCase().includes('timeout')) {
-            throw new AppError(
-              503,
-              'UPSTREAM_TIMEOUT',
-              'A consulta ao provedor externo excedeu o tempo limite. Tente novamente em alguns instantes.',
-            );
-          }
-        }
-
-        throw new AppError(
-          502,
-          'UPSTREAM_REQUEST_FAILED',
-          'Não foi possível obter as cotações no momento. Tente novamente mais tarde.',
-        );
+        throw mapQuotesProviderError(error);
       }
 
       const sortedQuotes = sortQuotes(result.data.quotes, sortBy, sortOrder);
@@ -259,6 +246,14 @@ export async function registerRoutes(app: FastifyInstance, deps?: RegisterRoutes
           hasNextPage: currentPage < paginated.totalPages,
           hasPreviousPage: currentPage > 1,
         },
+        warnings: result.meta.stale
+          ? [
+              {
+                code: 'STALE_DATA',
+                message: 'Os dados exibidos podem estar desatualizados devido à indisponibilidade temporária da fonte externa.',
+              },
+            ]
+          : [],
       };
     },
   );

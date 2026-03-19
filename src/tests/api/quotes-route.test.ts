@@ -68,8 +68,11 @@ async function buildApp(getQuotes: jest.Mock): Promise<FastifyInstance> {
 describe('GET /quotes integration', () => {
   it('returns paginated and sorted quotes by quoteValue asc by default', async () => {
     const getQuotes = jest.fn().mockResolvedValue({
-      source: 'cache',
       data: BASE_RESULT,
+      meta: {
+        source: 'cache',
+        stale: false,
+      },
     });
 
     const app = await buildApp(getQuotes);
@@ -97,8 +100,11 @@ describe('GET /quotes integration', () => {
 
   it('returns quotes sorted by rating desc', async () => {
     const getQuotes = jest.fn().mockResolvedValue({
-      source: 'scraper',
       data: BASE_RESULT,
+      meta: {
+        source: 'scraper',
+        stale: false,
+      },
     });
 
     const app = await buildApp(getQuotes);
@@ -136,8 +142,11 @@ describe('GET /quotes integration', () => {
 
   it('returns standardized validation error for invalid query params', async () => {
     const getQuotes = jest.fn().mockResolvedValue({
-      source: 'cache',
       data: BASE_RESULT,
+      meta: {
+        source: 'cache',
+        stale: false,
+      },
     });
 
     const app = await buildApp(getQuotes);
@@ -152,6 +161,35 @@ describe('GET /quotes integration', () => {
       statusCode: 400,
       code: 'VALIDATION_ERROR',
       error: 'Request Error',
+    });
+
+    await app.close();
+  });
+
+  it('includes stale warning when provider returns stale cache data', async () => {
+    const getQuotes = jest.fn().mockResolvedValue({
+      data: BASE_RESULT,
+      meta: {
+        source: 'cache',
+        stale: true,
+        staleReason: 'upstream_unavailable',
+      },
+    });
+
+    const app = await buildApp(getQuotes);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/quotes?currency=dolar-turismo&city=sao-paulo&operation=compra',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      warnings: [
+        {
+          code: 'STALE_DATA',
+        },
+      ],
     });
 
     await app.close();

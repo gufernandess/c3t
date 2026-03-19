@@ -21,6 +21,7 @@ Resposta:
 Endpoint de consulta de cotacoes com estrategia cache-first:
 - tenta retornar do Redis primeiro;
 - se nao houver cache, faz scraping em tempo real, salva no Redis e retorna.
+- se a fonte externa falhar, tenta retornar o ultimo cache valido com aviso de dados potencialmente desatualizados.
 
 #### Query Params
 - `currency` (string, obrigatorio): slug da moeda em minusculo, sem acento e com hifen quando necessario. Ex.: `dolar-turismo`
@@ -77,7 +78,20 @@ curl "http://localhost:3000/quotes?currency=dolar-turismo&city=sao-paulo&operati
     "totalPages": 2,
     "hasNextPage": true,
     "hasPreviousPage": false
-  }
+  },
+  "warnings": []
+}
+```
+
+Quando houver fallback para cache antigo por falha no provedor externo, a resposta `200` inclui:
+```json
+{
+  "warnings": [
+    {
+      "code": "STALE_DATA",
+      "message": "Os dados exibidos podem estar desatualizados devido à indisponibilidade temporária da fonte externa."
+    }
+  ]
 }
 ```
 
