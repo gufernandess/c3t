@@ -28,7 +28,7 @@ export async function registerRoutes(app: FastifyInstance, deps?: RegisterRoutes
     },
     async () => ({
       status: 'ok',
-      service: 'tourism-exchange-api',
+      service: 'c3t-api',
     }),
   );
 

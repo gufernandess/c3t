@@ -12,7 +12,7 @@ const fastify = Fastify({ logger: true });
 await fastify.register(swagger, {
   openapi: {
     info: {
-      title: 'Tourism Exchange API',
+      title: 'C3T API',
       description: 'API para consulta de cotações de câmbio turismo',
       version: '1.0.0',
     },

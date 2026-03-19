@@ -13,7 +13,7 @@ Resposta:
 ```json
 {
   "status": "ok",
-  "service": "tourism-exchange-api"
+  "service": "c3t-api"
 }
 ```
 
