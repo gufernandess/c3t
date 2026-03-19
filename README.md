@@ -1,4 +1,4 @@
-# Tourism Exchange API
+# Cotação de Casas de Câmbio para Turismo (C3T)
 
 API em Node.js para consulta de cotações de câmbio turismo no Brasil, com dados obtidos via scraping do site **Melhor Câmbio**.
 
@@ -109,3 +109,11 @@ curl "http://localhost:3000/quotes?currency=dolar-turismo&city=sao-paulo&operati
 
 - Os parâmetros `currency` e `city` devem ser enviados em slug: minúsculo, sem acento e com hífen quando necessário.
 - Como a fonte é externa, o layout do site pode mudar e exigir ajustes no parser.
+
+## Licença
+
+Este projeto está licenciado sob a licença MIT. Consulte o arquivo `LICENSE` para mais detalhes.
+
+## Contribuição
+
+Contribuições são bem-vindas. Se você quiser contribuir, abra uma issue para discutir a proposta ou envie um pull request com a melhoria.
