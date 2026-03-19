@@ -4,8 +4,10 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - MELHOR_CAMBIO_BASE_URL=https://www.melhorcambio.com
     depends_on:
       - redis
   redis:
