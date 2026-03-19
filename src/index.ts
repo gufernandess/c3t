@@ -3,6 +3,8 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { env } from './config/env.js';
 import { registerRoutes } from './api/routes.js';
+import { closeRedisClient } from './services/redis.js';
+import { startQuotesRefreshWorker } from './worker/quotes-refresh.js';
 
 const fastify = Fastify({ logger: true });
 
@@ -10,7 +12,7 @@ await fastify.register(swagger, {
   openapi: {
     info: {
       title: 'Tourism Exchange API',
-      description: 'API para consulta de cotacoes de cambio turismo',
+      description: 'API para consulta de cotações de câmbio turismo',
       version: '1.0.0',
     },
     tags: [{ name: 'Health' }, { name: 'Quotes' }],
@@ -22,6 +24,11 @@ await fastify.register(swaggerUi, {
 });
 
 await registerRoutes(fastify);
+startQuotesRefreshWorker();
+
+fastify.addHook('onClose', async () => {
+  await closeRedisClient();
+});
 
 const start = async () => {
   try {

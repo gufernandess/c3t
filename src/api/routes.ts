@@ -1,4 +1,79 @@
 import type { FastifyInstance } from 'fastify';
+import { normalizeProductType, QuotesProvider } from '../services/quotes-provider.js';
+import type { ExchangeHouseQuote } from '../scraper/types.js';
+
+const quotesProvider = new QuotesProvider();
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 10;
+const MAX_LIMIT = 100;
+
+type SortBy = 'quoteValue' | 'rating';
+type SortOrder = 'asc' | 'desc';
+
+function normalizePage(input: number | undefined): number {
+  if (!input || input < 1) {
+    return DEFAULT_PAGE;
+  }
+
+  return Math.floor(input);
+}
+
+function normalizeLimit(input: number | undefined): number {
+  if (!input || input < 1) {
+    return DEFAULT_LIMIT;
+  }
+
+  return Math.min(Math.floor(input), MAX_LIMIT);
+}
+
+function normalizeSortBy(input: string | undefined): SortBy {
+  if (input === 'rating') {
+    return 'rating';
+  }
+
+  return 'quoteValue';
+}
+
+function normalizeSortOrder(input: string | undefined): SortOrder {
+  if (input === 'desc') {
+    return 'desc';
+  }
+
+  return 'asc';
+}
+
+function sortQuotes(quotes: ExchangeHouseQuote[], sortBy: SortBy, sortOrder: SortOrder): ExchangeHouseQuote[] {
+  const direction = sortOrder === 'asc' ? 1 : -1;
+
+  return [...quotes].sort((a, b) => {
+    if (sortBy === 'rating') {
+      const aValue = a.rating ?? -1;
+      const bValue = b.rating ?? -1;
+      return (aValue - bValue) * direction;
+    }
+
+    return (a.quoteValue - b.quoteValue) * direction;
+  });
+}
+
+function paginateQuotes(quotes: ExchangeHouseQuote[], page: number, limit: number): {
+  items: ExchangeHouseQuote[];
+  total: number;
+  totalPages: number;
+} {
+  const total = quotes.length;
+  const totalPages = total === 0 ? 1 : Math.ceil(total / limit);
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * limit;
+  const end = start + limit;
+
+  return {
+    items: quotes.slice(start, end),
+    total,
+    totalPages,
+  };
+}
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get(
@@ -29,7 +104,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     {
       schema: {
         tags: ['Quotes'],
-        summary: 'Consulta cotacoes de turismo por moeda/cidade/operacao',
+        summary: 'Consulta cotações de turismo por moeda/cidade/operação',
         querystring: {
           type: 'object',
           required: ['currency', 'city', 'operation'],
@@ -38,26 +113,51 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
               type: 'string',
               pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
               description:
-                'Slug da moeda em minusculo, sem acento e com hifen quando necessario (ex: dolar-turismo, euro, libra).',
+                'Slug da moeda em minúsculo, sem acento e com hífen quando necessário (ex: dolar-turismo, euro, libra).',
               examples: ['dolar-turismo', 'dolar-canadense', 'euro'],
             },
             city: {
               type: 'string',
               pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
               description:
-                'Slug da cidade em minusculo, sem acento e separado por hifen (ex: sao-paulo, rio-de-janeiro, belo-horizonte).',
+                'Slug da cidade em minúsculo, sem acento e separado por hífen (ex: sao-paulo, rio-de-janeiro, belo-horizonte).',
               examples: ['sao-paulo', 'rio-de-janeiro', 'belo-horizonte'],
             },
             operation: {
               type: 'string',
               enum: ['compra', 'venda'],
-              description: 'Tipo de operacao de cambio',
+              description: 'Tipo de operação de câmbio',
             },
             productType: {
               type: 'string',
               enum: ['papel-moeda', 'cartao-prepago'],
               default: 'papel-moeda',
-              description: 'Tipo de produto de cambio',
+              description: 'Tipo de produto de câmbio',
+            },
+            page: {
+              type: 'integer',
+              minimum: 1,
+              default: 1,
+              description: 'Página atual para retorno da lista de casas de câmbio.',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 10,
+              description: 'Quantidade de itens por página (máximo 100).',
+            },
+            sortBy: {
+              type: 'string',
+              enum: ['quoteValue', 'rating'],
+              default: 'quoteValue',
+              description: 'Campo usado para ordenação da lista.',
+            },
+            sortOrder: {
+              type: 'string',
+              enum: ['asc', 'desc'],
+              default: 'asc',
+              description: 'Direção da ordenação.',
             },
           },
         },
@@ -65,14 +165,44 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
           200: {
             type: 'object',
             properties: {
-              message: { type: 'string' },
-              query: {
+              data: {
                 type: 'object',
                 properties: {
-                  currency: { type: 'string' },
-                  city: { type: 'string' },
+                  fetchedAt: { type: 'string' },
+                  currencyName: { type: 'string' },
+                  cityName: { type: 'string' },
                   operation: { type: 'string' },
                   productType: { type: 'string' },
+                  quotes: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        name: { type: 'string' },
+                        quoteValue: { type: 'number' },
+                        partnerRecommended: { type: 'boolean' },
+                        rating: { type: ['number', 'null'] },
+                        operationsLast60Days: { type: ['number', 'null'] },
+                        companyType: { type: ['string', 'null'] },
+                        legalName: { type: ['string', 'null'] },
+                        bacenCode: { type: ['string', 'null'] },
+                        address: { type: ['string', 'null'] },
+                        businessHours: { type: ['string', 'null'] },
+                        notes: { type: ['string', 'null'] },
+                      },
+                    },
+                  },
+                },
+              },
+              pagination: {
+                type: 'object',
+                properties: {
+                  page: { type: 'integer' },
+                  limit: { type: 'integer' },
+                  totalItems: { type: 'integer' },
+                  totalPages: { type: 'integer' },
+                  hasNextPage: { type: 'boolean' },
+                  hasPreviousPage: { type: 'boolean' },
                 },
               },
             },
@@ -86,15 +216,46 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         city: string;
         operation: 'compra' | 'venda';
         productType?: 'papel-moeda' | 'cartao-prepago';
+        page?: number;
+        limit?: number;
+        sortBy?: 'quoteValue' | 'rating';
+        sortOrder?: 'asc' | 'desc';
       };
 
+      const productType = normalizeProductType(query.productType);
+      const page = normalizePage(query.page);
+      const limit = normalizeLimit(query.limit);
+      const sortBy = normalizeSortBy(query.sortBy);
+      const sortOrder = normalizeSortOrder(query.sortOrder);
+
+      const result = await quotesProvider.getQuotes({
+        currency: query.currency,
+        city: query.city,
+        operation: query.operation,
+        productType,
+      });
+
+      const sortedQuotes = sortQuotes(result.data.quotes, sortBy, sortOrder);
+      const paginated = paginateQuotes(sortedQuotes, page, limit);
+
+      const currentPage = Math.min(page, paginated.totalPages);
+
       return {
-        message: 'Endpoint documentado e pronto para integrar com cache/scraper.',
-        query: {
-          currency: query.currency,
-          city: query.city,
-          operation: query.operation,
-          productType: query.productType ?? 'papel-moeda',
+        data: {
+          fetchedAt: result.data.fetchedAt,
+          currencyName: result.data.currencyName,
+          cityName: result.data.cityName,
+          operation: result.data.operation,
+          productType: result.data.productType,
+          quotes: paginated.items,
+        },
+        pagination: {
+          page: currentPage,
+          limit,
+          totalItems: paginated.total,
+          totalPages: paginated.totalPages,
+          hasNextPage: currentPage < paginated.totalPages,
+          hasPreviousPage: currentPage > 1,
         },
       };
     },

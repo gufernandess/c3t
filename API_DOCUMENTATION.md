@@ -18,13 +18,19 @@ Resposta:
 ```
 
 ### `GET /quotes`
-Endpoint de consulta de cotacoes (neste momento, estruturado e documentado para integracao com cache/scraper).
+Endpoint de consulta de cotacoes com estrategia cache-first:
+- tenta retornar do Redis primeiro;
+- se nao houver cache, faz scraping em tempo real, salva no Redis e retorna.
 
 #### Query Params
 - `currency` (string, obrigatorio): slug da moeda em minusculo, sem acento e com hifen quando necessario. Ex.: `dolar-turismo`
 - `city` (string, obrigatorio): slug da cidade em minusculo, sem acento e com hifen. Ex.: `sao-paulo`
 - `operation` (enum, obrigatorio): `compra` ou `venda`
 - `productType` (enum, opcional): `papel-moeda` ou `cartao-prepago` (default `papel-moeda`)
+- `page` (integer, opcional): pagina atual (default `1`)
+- `limit` (integer, opcional): itens por pagina (default `10`, max `100`)
+- `sortBy` (enum, opcional): `quoteValue` ou `rating` (default `quoteValue`)
+- `sortOrder` (enum, opcional): `asc` ou `desc` (default `asc`)
 
 Formato esperado para `currency` e `city`:
 `^[a-z0-9]+(?:-[a-z0-9]+)*$`
@@ -34,18 +40,48 @@ Formato esperado para `currency` e `city`:
 curl "http://localhost:3000/quotes?currency=dolar-turismo&city=sao-paulo&operation=compra&productType=papel-moeda"
 ```
 
-#### Resposta atual (mock estruturado)
+Exemplo com paginacao e ordenacao por rating:
+```bash
+curl "http://localhost:3000/quotes?currency=dolar-turismo&city=sao-paulo&operation=compra&page=1&limit=5&sortBy=rating&sortOrder=desc"
+```
+
+#### Resposta
 ```json
 {
-  "message": "Endpoint documentado e pronto para integrar com cache/scraper.",
-  "query": {
-    "currency": "dolar-turismo",
-    "city": "sao-paulo",
+  "data": {
+    "fetchedAt": "2026-03-19T01:00:00.000Z",
+    "currencyName": "Dólar",
+    "cityName": "São Paulo",
     "operation": "compra",
-    "productType": "papel-moeda"
+    "productType": "papel-moeda",
+    "quotes": [
+      {
+        "name": "Casa Exemplo",
+        "quoteValue": 5.59,
+        "partnerRecommended": true,
+        "rating": 4.5,
+        "operationsLast60Days": 120,
+        "companyType": "Corretora de Câmbio",
+        "legalName": "CASA EXEMPLO LTDA.",
+        "bacenCode": "12345",
+        "address": "Av. Paulista, 1000",
+        "businessHours": "Seg/Sex - 9h às 18h",
+        "notes": "Delivery sob consulta"
+      }
+    ]
+  },
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "totalItems": 19,
+    "totalPages": 2,
+    "hasNextPage": true,
+    "hasPreviousPage": false
   }
 }
 ```
 
-## Proximo passo
-Integrar `GET /quotes` ao Redis e ao scraper para retorno real das cotações.
+## Atualizacao automatica
+- O worker executa a cada 30 minutos (configurado por `QUOTE_REFRESH_CRON`).
+- O worker atualiza no Redis as consultas ja registradas no historico de uso.
+- TTL do cache configuravel por `CACHE_TTL_SECONDS`.
