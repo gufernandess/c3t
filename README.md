@@ -14,10 +14,11 @@ API em Node.js para consulta de cotações de câmbio turismo no Brasil, com dad
 
 Os dados são resgatados do site **https://www.melhorcambio.com/** por scraping.
 
-## Instância em produção
+## Instância em produção (Render)
 
 Há uma instância pública da aplicação no ar:
 
+- Status: `online`
 - API base: `https://c3t.onrender.com`
 - Exemplo de rota: `https://c3t.onrender.com/quotes?currency=dolar-turismo&city=sao-paulo&operation=compra`
 - Swagger: `https://c3t.onrender.com/docs`
