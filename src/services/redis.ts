@@ -5,11 +5,17 @@ let redisInstance: Redis | null = null;
 
 export function getRedisClient(): Redis {
   if (!redisInstance) {
-    redisInstance = new Redis({
-      host: env.REDIS_HOST,
-      port: env.REDIS_PORT,
-      maxRetriesPerRequest: 3,
-    });
+    if (env.REDIS_URL) {
+      redisInstance = new Redis(env.REDIS_URL, {
+        maxRetriesPerRequest: 3,
+      });
+    } else {
+      redisInstance = new Redis({
+        host: env.REDIS_HOST,
+        port: env.REDIS_PORT,
+        maxRetriesPerRequest: 3,
+      });
+    }
   }
 
   return redisInstance;
