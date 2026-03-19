@@ -3,9 +3,13 @@ import { AppError } from '../errors/app-error.js';
 import { normalizeProductType, QuotesProvider } from '../services/quotes-provider.js';
 import { normalizeLimit, normalizePage, normalizeSortBy, normalizeSortOrder, paginateQuotes, sortQuotes } from '../utils/quotes-query.js';
 
-const quotesProvider = new QuotesProvider();
+interface RegisterRoutesDeps {
+  quotesProvider?: Pick<QuotesProvider, 'getQuotes'>;
+}
 
-export async function registerRoutes(app: FastifyInstance): Promise<void> {
+export async function registerRoutes(app: FastifyInstance, deps?: RegisterRoutesDeps): Promise<void> {
+  const quotesProvider = deps?.quotesProvider ?? new QuotesProvider();
+
   app.get(
     '/',
     {
