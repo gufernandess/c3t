@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import { isAxiosError } from 'axios';
 import { AppError } from '../errors/app-error.js';
 import { MelhorCambioScraper } from '../scraper/client.js';
 import type { ExchangeScrapeResult, ProductType, ScraperParams } from '../scraper/types.js';
@@ -110,6 +111,44 @@ export function mapQuotesProviderError(error: unknown): AppError {
     return error;
   }
 
+  if (isAxiosError(error)) {
+    if (error.code === 'ECONNABORTED' || (error.message ?? '').toLowerCase().includes('timeout')) {
+      return new AppError(
+        503,
+        'UPSTREAM_TIMEOUT',
+        'A consulta ao provedor externo excedeu o tempo limite. Tente novamente em alguns instantes.',
+        {
+          axiosCode: error.code,
+          upstreamStatus: error.response?.status,
+        },
+      );
+    }
+
+    if (error.response?.status === 403 || error.response?.status === 429) {
+      return new AppError(
+        503,
+        'UPSTREAM_BLOCKED',
+        'A fonte externa recusou a requisição do servidor neste momento. Tente novamente mais tarde.',
+        {
+          axiosCode: error.code,
+          upstreamStatus: error.response.status,
+        },
+      );
+    }
+
+    if (error.code === 'ENOTFOUND' || error.code === 'EAI_AGAIN' || error.code === 'ECONNREFUSED') {
+      return new AppError(
+        503,
+        'UPSTREAM_UNAVAILABLE',
+        'A fonte externa está indisponível no momento. Tente novamente mais tarde.',
+        {
+          axiosCode: error.code,
+          upstreamStatus: error.response?.status,
+        },
+      );
+    }
+  }
+
   if (error instanceof Error) {
     if (error.message.includes('Nao foi possivel extrair moeda/cidade/campo de operacao')) {
       return new AppError(
@@ -132,5 +171,8 @@ export function mapQuotesProviderError(error: unknown): AppError {
     502,
     'UPSTREAM_REQUEST_FAILED',
     'Não foi possível obter as cotações no momento. Tente novamente mais tarde.',
+    {
+      errorType: typeof error,
+    },
   );
 }

@@ -180,6 +180,16 @@ export async function registerRoutes(app: FastifyInstance, deps?: RegisterRoutes
               message: { type: 'string' },
             },
           },
+          504: {
+            description: 'Timeout na comunicação com a fonte externa.',
+            type: 'object',
+            properties: {
+              statusCode: { type: 'integer' },
+              code: { type: 'string' },
+              error: { type: 'string' },
+              message: { type: 'string' },
+            },
+          },
           500: {
             description: 'Erro interno inesperado no servidor.',
             type: 'object',
